@@ -3,7 +3,8 @@ import { useState } from 'react';
 import axios from 'axios';
 import { Sparkles, Loader2, Upload, X, FileText } from 'lucide-react';
 
-const API_URL = "http://127.0.0.1:8000"; 
+// If we are on Vercel, use the Env Var. If on localhost, use 8000.
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 function App() {
   const [prompt, setPrompt] = useState("");
