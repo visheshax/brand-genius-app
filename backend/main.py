@@ -9,6 +9,7 @@ import PyPDF2
 import io
 import os
 from dotenv import load_dotenv  # <--- NEW IMPORT
+from pathlib import Path  # <--- NEW IMPORT
 
 # --- CONFIGURATION ---
 app = FastAPI(title="BrandGenius API")
@@ -22,9 +23,20 @@ app.add_middleware(
 )
 
 # --- API KEYS ---
-# (Keep your keys here)
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
+# This points to the folder where main.py is located.
+BASE_DIR = Path(__file__).resolve().parent
+
+# Load .env file from the specific backend directory
+load_dotenv(BASE_DIR / ".env")
+
+# --- API KEYS ---
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 HF_API_TOKEN = os.getenv("HF_API_TOKEN")
+
+# Debugging print (Optional - remove after fixing)
+print(f"Loading .env from: {BASE_DIR / '.env'}")
+print(f"Key found: {'Yes' if GROQ_API_KEY else 'No'}")
 
 if not GROQ_API_KEY or not HF_API_TOKEN:
     raise ValueError("API Keys are missing! Please check your .env file.")
