@@ -24,9 +24,8 @@ BRAND_CONTEXT = "You are a helpful, professional brand strategist. Visual style 
 
 # --- CLIENT SETUP ---
 # Ensure your Google Cloud Project ID is set in environment or defaults
-
 PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "gen-lang-client-0039182775")
-LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1") # Edit mode often requires us-central1
+LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1") 
 
 vertexai.init(project=PROJECT_ID, location=LOCATION)
 groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
@@ -108,4 +107,34 @@ def generate_image(request: PromptRequest):
         return Response(content=images[0]._image_bytes, media_type="image/png")
     except Exception as e:
         print(f"Vertex AI Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- NEW: SWAP BACKGROUND ENDPOINT ---
+@app.post("/swap-background")
+async def swap_background(prompt: str = Form(...), file: UploadFile = File(...)):
+    global BRAND_CONTEXT
+    try:
+        print(f"Swapping background with prompt: {prompt}")
+        
+        # 1. Read the uploaded image bytes
+        content = await file.read()
+        source_image = Image(content)
+
+        # 2. Optimize prompt using the brand context
+        final_prompt = optimize_prompt_for_visuals(prompt, BRAND_CONTEXT)
+        
+        # 3. Use Imagen 2 (imagegeneration@006) for editing capabilities
+        # Note: Imagen 3 editing support is rolling out, but @006 is stable for 'product-image' mode
+        model = ImageGenerationModel.from_pretrained("imagegeneration@006")
+        
+        images = model.edit_image(
+            base_image=source_image,
+            prompt=final_prompt,
+            edit_mode="product-image", # Special mode for background swapping
+            number_of_images=1
+        )
+        
+        return Response(content=images[0]._image_bytes, media_type="image/png")
+    except Exception as e:
+        print(f"Vertex AI Edit Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
