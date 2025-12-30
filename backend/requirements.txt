@@ -1,10 +1,6 @@
 fastapi
 uvicorn
-pydantic
-groq
-requests
-PyPDF2
 python-multipart
-python-dotenv
 google-cloud-aiplatform
+pypdf
 Pillow
