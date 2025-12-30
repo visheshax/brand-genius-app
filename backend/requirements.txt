@@ -7,3 +7,4 @@ PyPDF2
 python-multipart
 python-dotenv
 google-cloud-aiplatform
+Pillow
