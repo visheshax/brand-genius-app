@@ -20,7 +20,7 @@ app.add_middleware(
 )
 
 # --- GLOBAL MEMORY ---
-BRAND_CONTEXT = "You are a helpful, professional brand strategist. Visual style is clean and modern."
+BRAND_CONTEXT = "You are a helpful, professional brand strategist for a FMCG company. Visual style is clean and modern."
 
 # --- CLIENT SETUP ---
 # Ensure your Google Cloud Project ID is set in environment or defaults
@@ -44,7 +44,7 @@ def optimize_prompt_for_visuals(user_prompt: str, context: str) -> str:
                 {"role": "system", "content": "You are an expert visual prompt engineer. Rewrite the user request into a highly detailed visual description that matches the Brand Guidelines. Output ONLY the rewritten prompt."},
                 {"role": "user", "content": f"BRAND GUIDELINES:\n{context}\n\nUSER REQUEST: {user_prompt}\n\nDETAILED VISUAL PROMPT:"}
             ],
-            temperature=0.7,
+            temperature=0.3,
         )
         return completion.choices[0].message.content.strip()
     except Exception as e:
@@ -81,7 +81,7 @@ def generate_copy(request: PromptRequest):
                 {"role": "system", "content": f"You are a Senior Brand Strategist. Strictly adhere to these guidelines:\n\n{BRAND_CONTEXT}"},
                 {"role": "user", "content": request.prompt}
             ],
-            temperature=0.7,
+            temperature=0.6,
         )
         return {"response": completion.choices[0].message.content}
     except Exception as e:
