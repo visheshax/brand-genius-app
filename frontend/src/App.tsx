@@ -4,7 +4,7 @@ import axios from 'axios';
 import { Sparkles, Loader2, Upload, X, Image as ImageIcon, ShieldCheck, PenTool, Settings, ChevronDown } from 'lucide-react';
 
 // Your Cloud Run URL
-const API_URL = "https://brand-genius-app-186356869150.europe-west2.run.app";
+const API_URL = "[https://brand-genius-app-186356869150.europe-west2.run.app](https://brand-genius-app-186356869150.europe-west2.run.app)";
 
 // --- OPTIONS FOR THE BUILDER ---
 const ROLES = ["Brand Strategist", "Marketing Executive", "Social Media Manager", "Copywriting Expert", "SEO Specialist"];
@@ -29,6 +29,7 @@ function App() {
   // RESULTS
   const [result, setResult] = useState("");
   const [imageUrl, setImageUrl] = useState(""); 
+  const [auditScore, setAuditScore] = useState<number | null>(null); // For the score bar
   const [loading, setLoading] = useState(false);
   
   // TABS: 'writer' | 'visual' | 'guardian'
@@ -58,7 +59,7 @@ function App() {
         if (response.data.status === "success") {
             setBrandContext(response.data.extracted_text);
             setShowContext(true); 
-            alert("Context extracted! (Dropdowns overridden)");
+            alert("Context extracted! (Note: Dropdowns are now overridden)");
         }
     } catch (error) {
         console.error(error);
@@ -74,7 +75,7 @@ function App() {
   // 1. Writer (Gemini)
   const runWriter = async () => {
     if (!prompt) return;
-    setLoading(true); setResult(""); setImageUrl("");
+    setLoading(true); setResult(""); setImageUrl(""); setAuditScore(null);
     try {
       const response = await axios.post(`${API_URL}/generate-copy`, {
           prompt: prompt,
@@ -88,9 +89,8 @@ function App() {
   // 2. Visual Studio (Gemini + Imagen)
   const runVisual = async () => {
     if (!prompt) return;
-    setLoading(true); setResult(""); setImageUrl("");
+    setLoading(true); setResult(""); setImageUrl(""); setAuditScore(null);
     try {
-      // Use FormData to handle optional image upload
       const formData = new FormData();
       formData.append('prompt', prompt);
       formData.append('context', brandContext);
@@ -105,21 +105,41 @@ function App() {
 
       const url = URL.createObjectURL(response.data);
       setImageUrl(url);
-      if(selectedFile) setResult("✨ Image generated using your Reference Style.");
+      if(selectedFile) setResult("✨ Image generated using your Style Reference.");
     } catch (error) { setResult("Error generating visual."); } 
     finally { setLoading(false); }
   };
 
-  // 3. Brand Guardian (Audit)
+  // 3. Brand Guardian (Strict Audit)
   const runAudit = async () => {
     if (!prompt) return;
-    setLoading(true); setResult(""); setImageUrl("");
+    setLoading(true); setResult(""); setImageUrl(""); setAuditScore(null);
     try {
       const response = await axios.post(`${API_URL}/audit-content`, {
           content_to_audit: prompt,
           context: brandContext
       });
-      setResult(response.data.response);
+      
+      try {
+          // Parse the JSON coming from the backend
+          const data = JSON.parse(response.data.response);
+          setAuditScore(data.overall_score);
+          
+          const formattedResult = `
+### **Brand Score: ${data.overall_score}/100**
+**Tone Score:** ${data.tone_score}/100
+
+**Detailed Breakdown:**
+${data.rubric_breakdown.map((item: string) => `- ${item}`).join('\n')}
+
+**Suggestions:**
+${data.improvement_suggestions}
+          `;
+          setResult(formattedResult);
+      } catch (e) {
+          // Fallback if AI output wasn't perfect JSON
+          setResult(response.data.response);
+      }
     } catch (error) { setResult("Error auditing content."); } 
     finally { setLoading(false); }
   };
@@ -133,7 +153,7 @@ function App() {
   const onFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files[0]) {
           const file = e.target.files[0];
-          // If in Writer/Guardian, file is for CONTEXT extraction
+          // If in Writer/Guardian, file is for CONTEXT
           if (activeTab !== 'visual') {
               handleContextExtraction(file);
           } else {
@@ -185,6 +205,9 @@ function App() {
                         </div>
                     ))}
                 </div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    Resulting System Instruction (Editable)
+                </label>
                 <textarea 
                     value={brandContext}
                     onChange={(e) => setBrandContext(e.target.value)}
@@ -213,7 +236,7 @@ function App() {
               className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none resize-none h-40 mb-3 text-slate-700 placeholder:text-slate-400 text-lg"
               placeholder={
                   activeTab === 'writer' ? "e.g. Write a 3-part email sequence for our new summer line..." : 
-                  activeTab === 'visual' ? "e.g. A minimal product shot on a concrete pedestal, morning light..." :
+                  activeTab === 'visual' ? "e.g. A minimal product shot on a concrete pedestal..." :
                   "Paste existing content (text) here to audit it against your brand guidelines..."
               }
               value={prompt}
@@ -255,6 +278,35 @@ function App() {
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">
               {activeTab === 'guardian' ? "Audit Report" : "Output"}
             </h3>
+
+            {/* NEW: Audit Score Visualizer */}
+            {activeTab === 'guardian' && auditScore !== null && (
+                <div className="mb-6">
+                    <div className="flex justify-between items-end mb-2">
+                        <span className="text-sm font-bold text-slate-600">Brand Compliance Score</span>
+                        <span className={`text-2xl font-bold ${
+                            auditScore >= 90 ? 'text-green-600' : 
+                            auditScore >= 70 ? 'text-yellow-600' : 'text-red-600'
+                        }`}>
+                            {auditScore}%
+                        </span>
+                    </div>
+                    <div className="w-full bg-slate-200 rounded-full h-4 overflow-hidden">
+                        <div 
+                            className={`h-full transition-all duration-1000 ease-out ${
+                                auditScore >= 90 ? 'bg-green-500' : 
+                                auditScore >= 70 ? 'bg-yellow-500' : 'bg-red-500'
+                            }`}
+                            style={{ width: `${auditScore}%` }}
+                        />
+                    </div>
+                    <p className="text-xs text-slate-400 mt-2 text-right">
+                        {auditScore >= 90 ? "Excellent. Ready to publish." : 
+                         auditScore >= 70 ? "Good. Minor tweaks needed." : 
+                         "Needs Revision. Off-brand detected."}
+                    </p>
+                </div>
+            )}
             
             {result && (
               <div className="prose prose-slate prose-lg text-slate-700 leading-relaxed max-w-none">

@@ -4,8 +4,9 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 import os
 import io
+import json
 from PIL import Image as PILImage
-from pypdf import PdfReader # NEW: For PDF handling
+from pypdf import PdfReader
 import vertexai
 from vertexai.generative_models import GenerativeModel, Part, SafetySetting
 from vertexai.preview.vision_models import ImageGenerationModel, Image as VertexImage
@@ -28,7 +29,7 @@ vertexai.init(project=PROJECT_ID, location=LOCATION)
 
 # Initialize Gemini Models
 text_model = GenerativeModel("gemini-1.5-flash-001")
-vision_model = GenerativeModel("gemini-1.5-flash-001") # Capable of reading images
+vision_model = GenerativeModel("gemini-1.5-flash-001") # Multimodal (Text + Images)
 
 # --- DATA MODELS ---
 class PromptRequest(BaseModel):
@@ -45,7 +46,7 @@ class AuditRequest(BaseModel):
 def home():
     return {"message": "Brand Genius Brain is LISTENING (Gemini Edition)"}
 
-# 1. EXTRACT CONTEXT (Now supports PDF & Text)
+# 1. EXTRACT CONTEXT (Supports PDF & Text)
 @app.post("/extract-context-from-file")
 async def extract_context(file: UploadFile = File(...)):
     try:
@@ -72,7 +73,7 @@ async def extract_context(file: UploadFile = File(...)):
         print(f"Extraction failed: {str(e)}")
         return {"status": "error", "message": f"Could not read file: {str(e)}"}
 
-# 2. GENERATE COPY (Powered by Gemini)
+# 2. CAMPAIGN WRITER (Gemini)
 @app.post("/generate-copy")
 def generate_copy(request: PromptRequest):
     try:
@@ -90,13 +91,12 @@ def generate_copy(request: PromptRequest):
         print(f"Gemini Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# 3. VISUAL STUDIO (Consolidated Image Gen)
-# If a file is uploaded, we use Gemini to analyze it for style, then generate.
+# 3. VISUAL STUDIO (Consolidated: Text-to-Image OR Image-to-Image Style)
 @app.post("/generate-visual")
 async def generate_visual(
     prompt: str = Form(...), 
     context: str = Form(...),
-    file: UploadFile = File(None) # Optional file
+    file: UploadFile = File(None) # Optional Style Reference
 ):
     try:
         final_prompt = prompt
@@ -105,14 +105,14 @@ async def generate_visual(
         if file:
             print("Analyzing reference image for style...")
             content = await file.read()
-            # Convert to Part for Gemini
             image_part = Part.from_data(data=content, mime_type=file.content_type)
             
-            # Ask Gemini to describe the style to improve the prompt
+            # Ask Gemini to extract the style
             analysis_prompt = f"""
-            Analyze the visual style, lighting, and composition of this reference image.
-            Combine that style description with this user request: "{prompt}".
-            Create a highly detailed image generation prompt.
+            Analyze the visual style, lighting, color palette, and composition of this reference image.
+            Describe it in 3 sentences.
+            Then, combine that style description with this user request: "{prompt}".
+            Output ONLY the final detailed prompt for an image generator.
             """
             
             analysis = vision_model.generate_content([image_part, analysis_prompt])
@@ -136,13 +136,14 @@ async def generate_visual(
         print(f"Visual Studio Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# 4. BRAND GUARDIAN (Audit Tool)
+# 4. BRAND GUARDIAN (Strict JSON Rubric)
 @app.post("/audit-content")
 def audit_content(request: AuditRequest):
     try:
-        print("Auditing content...")
+        print("Auditing content against rubric...")
+        
         prompt = f"""
-        You are the 'Brand Guardian'. Your job is to strictly audit content against our guidelines.
+        ROLE: You are the Chief Brand Compliance Officer.
         
         BRAND GUIDELINES:
         {request.context}
@@ -150,15 +151,29 @@ def audit_content(request: AuditRequest):
         CONTENT TO AUDIT:
         {request.content_to_audit}
         
-        OUTPUT FORMAT:
-        1. Score (0-100)
-        2. What is on-brand (Bullet points)
-        3. What is OFF-brand (Bullet points)
-        4. Suggested rewrite (if score < 90)
+        TASK:
+        Evaluate the content strictly against the guidelines. 
+        You must output your response in valid JSON format ONLY. 
+        Do not add Markdown formatting (like ```json). Just the raw JSON string.
+        
+        JSON STRUCTURE:
+        {{
+            "overall_score": <number 0-100>,
+            "tone_score": <number 0-100>,
+            "rubric_breakdown": [
+                "Pass: <Observation about tone>",
+                "Fail: <Observation about specific keywords>"
+            ],
+            "improvement_suggestions": "<Specific rewrite instructions if score < 100>"
+        }}
         """
         
         response = text_model.generate_content(prompt)
-        return {"response": response.text}
+        
+        # Clean response to ensure valid JSON
+        raw_text = response.text.replace("```json", "").replace("```", "").strip()
+        
+        return {"response": raw_text}
     except Exception as e:
         print(f"Audit Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
