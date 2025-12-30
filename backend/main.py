@@ -23,13 +23,16 @@ app.add_middleware(
 )
 
 # --- CLIENT SETUP ---
-PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "gen-lang-client-0039182775")
-LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1") 
+# --- CLIENT SETUP ---
+# We hardcode your actual project details here to fix the 404 error
+PROJECT_ID = "brand-genius-app-186356869150"
+LOCATION = "europe-west2"
 vertexai.init(project=PROJECT_ID, location=LOCATION)
 
+
 # Initialize Gemini Models
-text_model = GenerativeModel("gemini-1.5-flash-001")
-vision_model = GenerativeModel("gemini-1.5-flash-001") 
+text_model = GenerativeModel("gemini-1.5-flash") # Removed "-001"
+vision_model = GenerativeModel("gemini-1.5-flash") # Removed "-001"
 
 # --- DATA MODELS ---
 class PromptRequest(BaseModel):
