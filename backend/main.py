@@ -34,7 +34,7 @@ def optimize_prompt_for_visuals(user_prompt: str, context: str) -> str:
     try:
         print("Translating prompt into visual brand language...")
         completion = groq_client.chat.completions.create(
-            model="llama3-8b-8192",
+            model="llama-3.1-8b-instant",
             messages=[
                 {"role": "system", "content": "You are an expert visual prompt engineer. Rewrite the user request into a highly detailed visual description that matches the Brand Guidelines. Output ONLY the rewritten prompt."},
                 {"role": "user", "content": f"BRAND GUIDELINES:\n{context}\n\nUSER REQUEST: {user_prompt}\n\nDETAILED VISUAL PROMPT:"}
