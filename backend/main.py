@@ -71,7 +71,7 @@ def generate_copy(request: PromptRequest):
     try:
         print(f"Generating copy for: {request.prompt}")
         completion = groq_client.chat.completions.create(
-            model="llama3-8b-8192",
+            model="llama-3.1-8b-instant",
             messages=[
                 {"role": "system", "content": f"You are a Senior Brand Strategist. Strictly adhere to these guidelines:\n\n{BRAND_CONTEXT}"},
                 {"role": "user", "content": request.prompt}
