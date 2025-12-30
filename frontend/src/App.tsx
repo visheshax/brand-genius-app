@@ -3,8 +3,8 @@ import { useState } from 'react';
 import axios from 'axios';
 import { Sparkles, Loader2, Upload, X, FileText } from 'lucide-react';
 
-// If we are on Vercel, use the Env Var. If on localhost, use 8000.
-const API_URL = import.meta.env.VITE_API_URL ;
+
+const API_URL = "https://brand-genius-app-186356869150.europe-west2.run.app"; ;
 
 function App() {
   const [prompt, setPrompt] = useState("");
