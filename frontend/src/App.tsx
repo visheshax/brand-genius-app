@@ -1,21 +1,26 @@
 import ReactMarkdown from 'react-markdown';
 import { useState } from 'react';
 import axios from 'axios';
-import { Sparkles, Loader2, Upload, X, FileText, Image as ImageIcon, ShoppingBag } from 'lucide-react';
+import { Sparkles, Loader2, Upload, X, FileText, Image as ImageIcon, ShoppingBag, Settings } from 'lucide-react';
 
-// Your actual Cloud Run URL
+// Your Cloud Run URL
 const API_URL = "https://brand-genius-app-186356869150.europe-west2.run.app";
 
 function App() {
+  // --- STATE ---
   const [prompt, setPrompt] = useState("");
+  // STATELESS: The frontend now holds the memory
+  const [brandContext, setBrandContext] = useState("You are a helpful, professional brand strategist. Visual style is clean and modern.");
+  const [showContext, setShowContext] = useState(false); // Toggle to hide/show context box
+  
   const [result, setResult] = useState("");
   const [imageUrl, setImageUrl] = useState(""); 
   const [loading, setLoading] = useState(false);
   
-  // Added 'product' tab
   const [activeTab, setActiveTab] = useState<'text' | 'image' | 'product'>('text');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
+  // --- HANDLERS ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0]);
@@ -26,17 +31,31 @@ function App() {
     setSelectedFile(null);
   };
 
-  // --- HELPER: Upload Text Context (Only for Text/Image Gen tabs) ---
-  const handleContextUpload = async () => {
-    if (!selectedFile) return;
-    
-    console.log("Uploading brand context...");
-    const formData = new FormData();
-    formData.append('file', selectedFile);
+  // --- CONTEXT EXTRACTION (Stateless) ---
+  // Uploads file, gets text BACK, and puts it in the 'brandContext' box
+  const handleContextExtraction = async (file: File) => {
+    setLoading(true);
+    try {
+        console.log("Extracting context from file...");
+        const formData = new FormData();
+        formData.append('file', file);
 
-    await axios.post(`${API_URL}/upload-brand-assets`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
+        const response = await axios.post(`${API_URL}/extract-context-from-file`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+
+        if (response.data.status === "success") {
+            setBrandContext(response.data.extracted_text);
+            setShowContext(true); // Auto-open the box to show user what happened
+            alert("Brand Guidelines extracted successfully!");
+        }
+    } catch (error) {
+        console.error("Extraction failed", error);
+        alert("Could not read file. Ensure it is a text file.");
+    } finally {
+        setLoading(false);
+        setSelectedFile(null); // Clear file after extraction
+    }
   };
 
   // --- TEXT GENERATION ---
@@ -47,10 +66,10 @@ function App() {
     setImageUrl(""); 
     
     try {
-      if (selectedFile) await handleContextUpload();
-
+      // Send BOTH prompt AND context
       const response = await axios.post(`${API_URL}/generate-copy`, {
-          prompt: prompt
+          prompt: prompt,
+          context: brandContext
       });
       setResult(response.data.response);
     } catch (error) {
@@ -69,10 +88,10 @@ function App() {
     setImageUrl("");
     
     try {
-      if (selectedFile) await handleContextUpload();
-
+      // Send BOTH prompt AND context
       const response = await axios.post(`${API_URL}/generate-image`, { 
-        prompt: prompt 
+        prompt: prompt,
+        context: brandContext
       }, { responseType: 'blob' });
 
       const url = URL.createObjectURL(response.data);
@@ -85,7 +104,7 @@ function App() {
     }
   };
 
-  // --- PRODUCT BACKGROUND SWAP (New) ---
+  // --- PRODUCT BACKGROUND SWAP ---
   const generateProductImage = async () => {
     if (!prompt || !selectedFile) {
         alert("Please select a product image and enter a prompt.");
@@ -96,13 +115,13 @@ function App() {
     setImageUrl("");
 
     try {
-        // Different endpoint, we send the file AND prompt together in FormData
         const formData = new FormData();
         formData.append('file', selectedFile);
         formData.append('prompt', prompt);
+        formData.append('context', brandContext); // Send context here too
 
         const response = await axios.post(`${API_URL}/swap-background`, formData, {
-            responseType: 'blob', // Expecting image back
+            responseType: 'blob', 
             headers: { 'Content-Type': 'multipart/form-data' }
         });
 
@@ -123,17 +142,56 @@ function App() {
     if (activeTab === 'product') return generateProductImage();
   };
 
+  // Handle file selection logic based on tab
+  const onFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files[0]) {
+          const file = e.target.files[0];
+          
+          // If we are in text/image mode, uploading a file means "Extract Context"
+          if (activeTab !== 'product') {
+              handleContextExtraction(file);
+          } else {
+              // In product mode, uploading a file means "Select Product Image"
+              setSelectedFile(file);
+          }
+      }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center py-12 px-4 font-sans">
-      <div className="max-w-2xl w-full bg-white shadow-xl rounded-2xl overflow-hidden border border-slate-100">
+      <div className="max-w-3xl w-full bg-white shadow-xl rounded-2xl overflow-hidden border border-slate-100">
         
         {/* Header */}
-        <div className="bg-white p-6 border-b border-slate-100 flex items-center gap-3">
-          <div className="p-2 bg-blue-600 rounded-lg">
-            <Sparkles className="text-white w-5 h-5" />
+        <div className="bg-white p-6 border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-600 rounded-lg">
+                <Sparkles className="text-white w-5 h-5" />
+            </div>
+            <h1 className="text-xl font-bold text-slate-800">BrandGenius Enterprise</h1>
           </div>
-          <h1 className="text-xl font-bold text-slate-800">BrandGenius Enterprise</h1>
+          <button 
+            onClick={() => setShowContext(!showContext)}
+            className="flex items-center gap-2 text-slate-500 hover:text-blue-600 text-sm font-medium transition-colors"
+          >
+            <Settings className="w-4 h-4" />
+            {showContext ? "Hide Brand Context" : "Edit Brand Context"}
+          </button>
         </div>
+
+        {/* BRAND CONTEXT PANEL (Collapsible) */}
+        {showContext && (
+            <div className="bg-slate-50 p-6 border-b border-slate-100 animate-in slide-in-from-top-2 duration-200">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    Global Brand Context (Applied to all generations)
+                </label>
+                <textarea 
+                    value={brandContext}
+                    onChange={(e) => setBrandContext(e.target.value)}
+                    className="w-full p-3 border border-slate-200 rounded-lg text-sm text-slate-700 h-24 focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="e.g. We are a sustainable coffee brand. Tone is warm, earthy, and premium..."
+                />
+            </div>
+        )}
 
         {/* Tabs */}
         <div className="flex border-b border-slate-100">
@@ -178,7 +236,7 @@ function App() {
                       type="file"
                       id="file-upload"
                       className="hidden"
-                      onChange={handleFileChange}
+                      onChange={onFileSelected}
                       // Switch accept types based on tab
                       accept={activeTab === 'product' ? "image/*" : ".txt,.md"} 
                     />
@@ -188,16 +246,14 @@ function App() {
                     >
                       {activeTab === 'product' ? <ImageIcon className="w-4 h-4"/> : <Upload className="w-4 h-4" />}
                       <span>
-                        {activeTab === 'text' ? "Attach Brand Voice (.txt)" : 
-                         activeTab === 'image' ? "Attach Style Guide (.txt)" : 
-                         "Upload Product Photo (Required)"}
+                        {activeTab === 'product' ? "Upload Product Photo (Required)" : "Import Brand Guide (.txt)"}
                       </span>
                     </label>
                  </div>
 
-                 {selectedFile && (
+                 {selectedFile && activeTab === 'product' && (
                     <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full text-xs font-medium border border-blue-100">
-                      {activeTab === 'product' ? <ShoppingBag className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
+                      <ShoppingBag className="w-3 h-3" />
                       <span className="max-w-[150px] truncate">{selectedFile.name}</span>
                       <button onClick={removeFile} className="hover:text-blue-900">
                         <X className="w-3 h-3" />
