@@ -1,28 +1,33 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware  # <--- NEW IMPORT
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
 import os
+import io
 import vertexai
-from vertexai.preview.vision_models import ImageGenerationModel
+from vertexai.preview.vision_models import ImageGenerationModel, Image
 from groq import Groq
 
 app = FastAPI()
 
-# --- 1. ENABLE CORS (THE FIX) ---
+# --- ENABLE CORS ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins (Simplest for this demo)
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods (POST, GET, etc.)
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # --- GLOBAL MEMORY ---
 BRAND_CONTEXT = "You are a helpful, professional brand strategist. Visual style is clean and modern."
 
 # --- CLIENT SETUP ---
-vertexai.init(location="europe-west2")
+# Ensure your Google Cloud Project ID is set in environment or defaults
+PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "your-project-id")
+LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1") # Edit mode often requires us-central1
+
+vertexai.init(project=PROJECT_ID, location=LOCATION)
 groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 # --- DATA MODELS ---
@@ -71,7 +76,8 @@ def generate_copy(request: PromptRequest):
     try:
         print(f"Generating copy for: {request.prompt}")
         completion = groq_client.chat.completions.create(
-            model="llama3-8b-8192",
+            # Switched to the newer, faster model
+            model="llama-3.1-8b-instant",
             messages=[
                 {"role": "system", "content": f"You are a Senior Brand Strategist. Strictly adhere to these guidelines:\n\n{BRAND_CONTEXT}"},
                 {"role": "user", "content": request.prompt}
@@ -90,6 +96,7 @@ def generate_image(request: PromptRequest):
         print(f"Generating image for: {request.prompt}")
         final_prompt = optimize_prompt_for_visuals(request.prompt, BRAND_CONTEXT)
         
+        # Imagen 3 for standard generation
         model = ImageGenerationModel.from_pretrained("imagen-3.0-generate-001")
         images = model.generate_images(
             prompt=final_prompt,
@@ -101,4 +108,43 @@ def generate_image(request: PromptRequest):
         return Response(content=images[0]._image_bytes, media_type="image/png")
     except Exception as e:
         print(f"Vertex AI Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/swap-background")
+async def swap_background(
+    file: UploadFile = File(...),
+    prompt: str = Form(...)
+):
+    """
+    New Endpoint: Receives an image and a prompt, performs a background swap.
+    """
+    try:
+        print(f"Swapping background with prompt: {prompt}")
+        
+        # 1. Read file bytes
+        file_bytes = await file.read()
+        source_image = Image(image_bytes=file_bytes)
+
+        # 2. Load Imagen 2 Model (Best for editing/inpainting)
+        model = ImageGenerationModel.from_pretrained("imagegeneration@006")
+
+        # 3. Perform Edit
+        generated_images = model.edit_image(
+            base_image=source_image,
+            prompt=prompt,
+            edit_mode="product-image", # Specialized for keeping products intact
+            mask_mode="background",    # Auto-masking magic
+            guidance_scale=60,
+            number_of_images=1
+        )
+
+        # 4. Return Result
+        output_buffer = io.BytesIO()
+        generated_images[0].save(output_buffer, include_generation_parameters=False)
+        output_buffer.seek(0)
+        
+        return Response(content=output_buffer.getvalue(), media_type="image/png")
+
+    except Exception as e:
+        print(f"Background Swap Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
