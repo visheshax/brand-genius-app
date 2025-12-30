@@ -3,8 +3,8 @@ import { useState } from 'react';
 import axios from 'axios';
 import { Sparkles, Loader2, Upload, X, FileText } from 'lucide-react';
 
-
-const API_URL = "https://brand-genius-app-186356869150.europe-west2.run.app"; ;
+// Your actual Cloud Run URL
+const API_URL = "https://brand-genius-app-186356869150.europe-west2.run.app";
 
 function App() {
   const [prompt, setPrompt] = useState("");
@@ -24,6 +24,21 @@ function App() {
     setSelectedFile(null);
   };
 
+  // --- HELPER: Upload File First (If exists) ---
+  const handleFileUpload = async () => {
+    if (!selectedFile) return;
+    
+    console.log("Uploading brand context...");
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    // Send to the dedicated upload endpoint
+    await axios.post(`${API_URL}/upload-brand-assets`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  };
+
+  // --- TEXT GENERATION ---
   const generateCopy = async () => {
     if (!prompt) return;
     setLoading(true);
@@ -31,31 +46,29 @@ function App() {
     setImageUrl(""); 
     
     try {
-      let response;
+      // Step 1: Inject Context (if file is selected)
       if (selectedFile) {
-        const formData = new FormData();
-        formData.append('prompt', prompt);
-        formData.append('file', selectedFile);
-        formData.append('context', "Professional marketing tone");
-        response = await axios.post(`${API_URL}/generate/copy-with-file`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-        });
-      } else {
-        response = await axios.post(`${API_URL}/generate/copy`, {
-            prompt: prompt,
-            context: "Professional marketing tone"
-        });
+        await handleFileUpload();
       }
-      setResult(response.data.result);
+
+      // Step 2: Generate Copy (The backend now reads from its memory)
+      // Note: We send simple JSON now, not FormData
+      const response = await axios.post(`${API_URL}/generate-copy`, {
+          prompt: prompt
+      });
+      
+      // Backend returns { "response": "..." }
+      setResult(response.data.response);
+
     } catch (error) {
       console.error(error);
-      setResult("Error generating text.");
+      setResult("Error generating text. Please check console.");
     } finally {
       setLoading(false);
     }
   };
 
-  // --- UPDATED FUNCTION: Handle Files for Images too ---
+  // --- IMAGE GENERATION ---
   const generateImage = async () => {
     if (!prompt) return;
     setLoading(true);
@@ -63,28 +76,24 @@ function App() {
     setImageUrl("");
     
     try {
-      let response;
-      
-      // We now use FormData for images too, in case a file is attached
-      const formData = new FormData();
-      formData.append('prompt', prompt);
-      formData.append('style', "minimalist, 4k, professional");
-      
+      // Step 1: Inject Context (if file is selected)
       if (selectedFile) {
-        formData.append('file', selectedFile);
+        await handleFileUpload();
       }
 
-      // Note: We use the same endpoint, but now it accepts Form Data
-      response = await axios.post(`${API_URL}/generate/image`, formData, { 
-        responseType: 'blob', // Important for images
-        headers: { 'Content-Type': 'multipart/form-data' } // Important for files
+      // Step 2: Generate Image
+      const response = await axios.post(`${API_URL}/generate-image`, { 
+        prompt: prompt 
+      }, { 
+        responseType: 'blob' // Critical for receiving image bytes
       });
 
       const url = URL.createObjectURL(response.data);
       setImageUrl(url);
+
     } catch (error) {
       console.error(error);
-      setResult("Error generating image.");
+      setResult("Error generating image. Please check console.");
     } finally {
       setLoading(false);
     }
@@ -128,7 +137,7 @@ function App() {
               onChange={(e) => setPrompt(e.target.value)}
             />
             
-            {/* --- MOVED: File Upload is now visible for BOTH tabs --- */}
+            {/* File Upload UI */}
             <div className="flex items-center justify-between mb-4">
                  <div className="flex gap-2">
                     <input
@@ -136,14 +145,14 @@ function App() {
                       id="file-upload"
                       className="hidden"
                       onChange={handleFileChange}
-                      accept=".pdf,.png,.jpg,.jpeg,.txt"
+                      accept=".txt,.md" // Limit to text files for the demo
                     />
                     <label 
                       htmlFor="file-upload" 
                       className="cursor-pointer flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600 transition-colors py-2 px-3 rounded-md hover:bg-slate-50"
                     >
                       <Upload className="w-4 h-4" />
-                      <span>{activeTab === 'text' ? "Attach Guidelines" : "Attach Style Ref"}</span>
+                      <span>{activeTab === 'text' ? "Attach Brand Voice (.txt)" : "Attach Style Guide (.txt)"}</span>
                     </label>
                  </div>
 
