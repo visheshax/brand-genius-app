@@ -1,7 +1,7 @@
 import ReactMarkdown from 'react-markdown';
 import { useState } from 'react';
 import axios from 'axios';
-import { Sparkles, Loader2, Upload, X, FileText, Image as ImageIcon, ShoppingBag, Settings } from 'lucide-react';
+import { Sparkles, Loader2, Upload, X, Image as ImageIcon, ShoppingBag, Settings } from 'lucide-react';
 
 // Your Cloud Run URL
 const API_URL = "https://brand-genius-app-186356869150.europe-west2.run.app";
@@ -21,12 +21,6 @@ function App() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   // --- HANDLERS ---
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-    }
-  };
-
   const removeFile = () => {
     setSelectedFile(null);
   };
