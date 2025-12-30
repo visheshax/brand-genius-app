@@ -4,7 +4,8 @@ import axios from 'axios';
 import { Sparkles, Loader2, Upload, X, Image as ImageIcon, ShieldCheck, PenTool, Settings, ChevronDown } from 'lucide-react';
 
 // Your Cloud Run URL
-const API_URL = "[https://brand-genius-app-186356869150.europe-west2.run.app](https://brand-genius-app-186356869150.europe-west2.run.app)";
+// ✅ CORRECT: Just the raw URL, no brackets
+const API_URL = "https://brand-genius-app-186356869150.europe-west2.run.app";
 
 // --- OPTIONS FOR THE BUILDER ---
 const ROLES = ["Brand Strategist", "Marketing Executive", "Social Media Manager", "Copywriting Expert", "SEO Specialist"];
