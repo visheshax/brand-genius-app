@@ -27,7 +27,7 @@ app.add_middleware(
 # We hardcode your actual project details here to fix the 404 error
 # --- CLIENT SETUP ---
 # Keep Project ID as is
-PROJECT_ID = "brand-genius-app-186356869150" 
+PROJECT_ID = "gen-lang-client-0039182775"
 
 # CHANGE THIS to us-central1 (even if your server is in Europe)
 LOCATION = "us-central1" 
