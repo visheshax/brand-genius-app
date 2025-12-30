@@ -25,8 +25,14 @@ app.add_middleware(
 # --- CLIENT SETUP ---
 # --- CLIENT SETUP ---
 # We hardcode your actual project details here to fix the 404 error
-PROJECT_ID = "brand-genius-app-186356869150"
-LOCATION = "europe-west2"
+# --- CLIENT SETUP ---
+# Keep Project ID as is
+PROJECT_ID = "brand-genius-app-186356869150" 
+
+# CHANGE THIS to us-central1 (even if your server is in Europe)
+LOCATION = "us-central1" 
+
+
 vertexai.init(project=PROJECT_ID, location=LOCATION)
 
 
