@@ -35,8 +35,8 @@ print(f"🚀 Initializing Vertex AI with Project: {PROJECT_ID} in {LOCATION}")
 vertexai.init(project=PROJECT_ID, location=LOCATION)
 
 # Initialize Models
-text_model = GenerativeModel("gemini-1.5-flash")
-vision_model = GenerativeModel("gemini-1.5-flash")
+text_model = GenerativeModel("gemini-1.5-flash-002")
+vision_model = GenerativeModel("gemini-1.5-flash-002")
 
 # --- DATA MODELS ---
 class PromptRequest(BaseModel):
