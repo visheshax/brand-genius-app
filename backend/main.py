@@ -24,17 +24,17 @@ app.add_middleware(
 
 # main.py
 
-# ✅ FIX: Match the Project ID shown in your screenshot
-PROJECT_ID = "brand-genius-prod-1767127479" 
+# main.py
 
-# ✅ Keep this as us-central1 for Gemini availability
-LOCATION = "us-central1" 
+# ✅ FIX: Match the project ID you are using in your terminal
+PROJECT_ID = "brand-genius-prod-1767127479" 
+LOCATION = "us-central1"
 
 vertexai.init(project=PROJECT_ID, location=LOCATION)
 
-# ✅ Use the base model name for auto-updates
-text_model = GenerativeModel("gemini-2.5-flash")
-vision_model = GenerativeModel("gemini-2.5-flash")
+# Initialize Gemini
+text_model = GenerativeModel("gemini-1.5-flash")
+vision_model = GenerativeModel("gemini-1.5-flash")
 
 # --- DATA MODELS ---
 class PromptRequest(BaseModel):
