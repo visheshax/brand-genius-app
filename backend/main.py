@@ -22,21 +22,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- CLIENT SETUP (REFACTORED) ---
-# ✅ FIX 2: Automatically get the project ID from the Cloud Run environment
-# If running locally, you might need to run `gcloud config set project your-project-id`
-PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", "brand-genius-prod-1767127479")
+# main.py
 
-# Keep us-central1 for Vertex AI access as it has the best model availability
-# even if your Cloud Run service is in Europe.
+# ✅ FIX: Match the Project ID shown in your screenshot
+PROJECT_ID = "brand-genius-prod-1767127479" 
+
+# ✅ Keep this as us-central1 for Gemini availability
 LOCATION = "us-central1" 
 
-print(f"🚀 Initializing Vertex AI with Project: {PROJECT_ID} in {LOCATION}")
 vertexai.init(project=PROJECT_ID, location=LOCATION)
 
-# Initialize Models
-text_model = GenerativeModel("gemini-1.5-flash-002")
-vision_model = GenerativeModel("gemini-1.5-flash-002")
+# ✅ Use the base model name for auto-updates
+text_model = GenerativeModel("gemini-2.5-flash")
+vision_model = GenerativeModel("gemini-2.5-flash")
 
 # --- DATA MODELS ---
 class PromptRequest(BaseModel):

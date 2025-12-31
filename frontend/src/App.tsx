@@ -5,6 +5,9 @@ import { Sparkles, Loader2, Upload, X, Image as ImageIcon, ShieldCheck, PenTool,
 
 // Your Cloud Run URL
 
+// App.tsx
+
+// ✅ FIX: Use the URL for the 'brand-backend' service
 const API_URL = "https://brand-backend-690954776982.europe-west2.run.app";
 
 // ... rest of the code remains the same ...
