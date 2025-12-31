@@ -5,15 +5,15 @@ from pydantic import BaseModel
 import os
 import io
 import json
-from PIL import Image as PILImage
 from pypdf import PdfReader
 import vertexai
-from vertexai.generative_models import GenerativeModel, Part, SafetySetting
-from vertexai.preview.vision_models import ImageGenerationModel, Image as VertexImage
+from vertexai.generative_models import GenerativeModel, Part
+from vertexai.preview.vision_models import ImageGenerationModel
 
 app = FastAPI()
 
 # --- ENABLE CORS ---
+# In production, replace ["*"] with your specific Frontend URL for better security
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -22,23 +22,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- CLIENT SETUP ---
-# --- CLIENT SETUP ---
-# We hardcode your actual project details here to fix the 404 error
-# --- CLIENT SETUP ---
-# Keep Project ID as is
-PROJECT_ID = "gen-lang-client-0039182775"
+# --- CLIENT SETUP (REFACTORED) ---
+# ✅ FIX 2: Automatically get the project ID from the Cloud Run environment
+# If running locally, you might need to run `gcloud config set project your-project-id`
+PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", "brand-genius-prod-1767127479")
 
-# CHANGE THIS to us-central1 (even if your server is in Europe)
+# Keep us-central1 for Vertex AI access as it has the best model availability
+# even if your Cloud Run service is in Europe.
 LOCATION = "us-central1" 
 
-
+print(f"🚀 Initializing Vertex AI with Project: {PROJECT_ID} in {LOCATION}")
 vertexai.init(project=PROJECT_ID, location=LOCATION)
 
-
-# Initialize Gemini Models
-text_model = GenerativeModel("gemini-1.5-flash") # Removed "-001"
-vision_model = GenerativeModel("gemini-1.5-flash") # Removed "-001"
+# Initialize Models
+text_model = GenerativeModel("gemini-1.5-flash")
+vision_model = GenerativeModel("gemini-1.5-flash")
 
 # --- DATA MODELS ---
 class PromptRequest(BaseModel):
@@ -55,7 +53,6 @@ class AuditRequest(BaseModel):
 def home():
     return {"message": "Brand Genius Brain is LISTENING (Gemini Edition)"}
 
-# 1. EXTRACT CONTEXT (Supports PDF & Text)
 @app.post("/extract-context-from-file")
 async def extract_context(file: UploadFile = File(...)):
     try:
@@ -64,30 +61,28 @@ async def extract_context(file: UploadFile = File(...)):
         extracted_text = ""
 
         if filename.endswith(".pdf"):
-            # Parse PDF
             pdf_reader = PdfReader(io.BytesIO(content))
             for page in pdf_reader.pages:
-                extracted_text += page.extract_text() + "\n"
+                text = page.extract_text()
+                if text:
+                    extracted_text += text + "\n"
         else:
-            # Assume Text/MD
             extracted_text = content.decode("utf-8")
 
-        print(f"Extracted text from {filename}: {len(extracted_text)} chars.")
+        print(f"✅ Extracted {len(extracted_text)} chars from {filename}")
         return {
             "status": "success", 
             "extracted_text": extracted_text.strip(),
             "message": "Context extracted successfully."
         }
     except Exception as e:
-        print(f"Extraction failed: {str(e)}")
-        # This print will show up in Cloud Run logs if it fails
+        print(f"❌ Extraction Error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Could not read file: {str(e)}")
 
-# 2. CAMPAIGN WRITER
 @app.post("/generate-copy")
 def generate_copy(request: PromptRequest):
     try:
-        print(f"Gemini generating copy...")
+        print(f"✍️ Generating copy...")
         prompt = f"""
         ROLE: You are a Senior Brand Strategist.
         BRAND CONTEXT: {request.context}
@@ -96,10 +91,9 @@ def generate_copy(request: PromptRequest):
         response = text_model.generate_content(prompt)
         return {"response": response.text}
     except Exception as e:
-        print(f"Gemini Error: {str(e)}")
+        print(f"❌ Gemini Text Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# 3. VISUAL STUDIO
 @app.post("/generate-visual")
 async def generate_visual(
     prompt: str = Form(...), 
@@ -108,45 +102,57 @@ async def generate_visual(
 ):
     try:
         final_prompt = prompt
+        
+        # 1. Image Analysis (if file provided)
         if file:
-            print("Analyzing reference image for style...")
+            print("👁️ Analyzing reference image style...")
             content = await file.read()
             image_part = Part.from_data(data=content, mime_type=file.content_type)
+            
             analysis_prompt = f"""
-            Analyze the visual style of this image. Combine it with this request: "{prompt}".
-            Output ONLY the detailed image prompt.
+            Analyze the visual style (lighting, color palette, composition) of this image.
+            Create a highly detailed image generation prompt that applies THIS STYLE to this request: "{prompt}".
+            Output ONLY the raw prompt text.
             """
             analysis = vision_model.generate_content([image_part, analysis_prompt])
             final_prompt = analysis.text
+            print(f"✨ Enhanced Prompt: {final_prompt}")
 
-        print(f"Generating image with prompt: {final_prompt}")
+        # 2. Image Generation
+        print(f"🎨 Generating image...")
         model = ImageGenerationModel.from_pretrained("imagen-3.0-generate-001")
+        
+        # Note: 'aspect_ratio' support depends on the specific model version/region
         images = model.generate_images(
-            prompt=f"{final_prompt}. Brand Guidelines: {context}",
+            prompt=f"{final_prompt}. Follow these brand visual guidelines strictly: {context}",
             number_of_images=1,
             aspect_ratio="1:1"
         )
         return Response(content=images[0]._image_bytes, media_type="image/png")
 
     except Exception as e:
-        print(f"Visual Studio Error: {str(e)}")
+        print(f"❌ Visual Studio Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# 4. BRAND GUARDIAN
 @app.post("/audit-content")
 def audit_content(request: AuditRequest):
     try:
-        print("Auditing content...")
+        print("🛡️ Auditing content...")
         prompt = f"""
         ROLE: Chief Brand Compliance Officer.
         BRAND GUIDELINES: {request.context}
         CONTENT TO AUDIT: {request.content_to_audit}
-        TASK: Evaluate content. Output valid JSON ONLY.
-        JSON STRUCTURE: {{ "overall_score": <0-100>, "tone_score": <0-100>, "rubric_breakdown": ["pass", "fail"], "improvement_suggestions": "string" }}
+        TASK: Evaluate the content against the guidelines.
+        OUTPUT FORMAT: Return valid, parseable JSON ONLY. No markdown formatting (no ```json blocks).
+        JSON STRUCTURE: {{ "overall_score": <0-100 integer>, "tone_score": <0-100 integer>, "rubric_breakdown": ["string", "string"], "improvement_suggestions": "string" }}
         """
+        
         response = text_model.generate_content(prompt)
+        
+        # Clean the response to ensure valid JSON
         raw_text = response.text.replace("```json", "").replace("```", "").strip()
+        
         return {"response": raw_text}
     except Exception as e:
-        print(f"Audit Error: {str(e)}")
+        print(f"❌ Audit Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
